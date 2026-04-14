@@ -25,14 +25,15 @@
  */
 
 #include <errno.h>
+#include <limits.h>
 #include <stdio.h>
 #include <strings.h>
+
+#include <audio-defs/adefs.h>
 
 #define ULOG_TAG adef
 #include <ulog.h>
 ULOG_DECLARE_TAG(ULOG_TAG);
-
-#include <audio-defs/adefs.h>
 
 
 static const struct {
@@ -47,12 +48,11 @@ static const struct {
 
 enum adef_encoding adef_encoding_from_str(const char *str)
 {
-	unsigned int i;
 	enum adef_encoding ret = ADEF_ENCODING_UNKNOWN;
 
 	ULOG_ERRNO_RETURN_VAL_IF(str == NULL, EINVAL, ret);
 
-	for (i = 0; i < ADEF_ARRAY_SIZE(encoding_map); i++) {
+	for (unsigned int i = 0; i < ADEF_ARRAY_SIZE(encoding_map); i++) {
 		if (strcasecmp(str, encoding_map[i].str) == 0)
 			return encoding_map[i].encoding;
 	}
@@ -63,8 +63,7 @@ enum adef_encoding adef_encoding_from_str(const char *str)
 
 const char *adef_encoding_to_str(enum adef_encoding encoding)
 {
-	unsigned int i;
-	for (i = 0; i < ADEF_ARRAY_SIZE(encoding_map); i++) {
+	for (unsigned int i = 0; i < ADEF_ARRAY_SIZE(encoding_map); i++) {
 		if (encoding == encoding_map[i].encoding)
 			return encoding_map[i].str;
 	}
@@ -85,12 +84,12 @@ static const struct {
 
 enum adef_aac_data_format adef_aac_data_format_from_str(const char *str)
 {
-	unsigned int i;
 	enum adef_aac_data_format ret = ADEF_AAC_DATA_FORMAT_UNKNOWN;
 
 	ULOG_ERRNO_RETURN_VAL_IF(str == NULL, EINVAL, ret);
 
-	for (i = 0; i < ADEF_ARRAY_SIZE(aac_data_format_map); i++) {
+	for (unsigned int i = 0; i < ADEF_ARRAY_SIZE(aac_data_format_map);
+	     i++) {
 		if (strcasecmp(str, aac_data_format_map[i].str) == 0)
 			return aac_data_format_map[i].data_format;
 	}
@@ -101,8 +100,8 @@ enum adef_aac_data_format adef_aac_data_format_from_str(const char *str)
 
 const char *adef_aac_data_format_to_str(enum adef_aac_data_format data_format)
 {
-	unsigned int i;
-	for (i = 0; i < ADEF_ARRAY_SIZE(aac_data_format_map); i++) {
+	for (unsigned int i = 0; i < ADEF_ARRAY_SIZE(aac_data_format_map);
+	     i++) {
 		if (data_format == aac_data_format_map[i].data_format)
 			return aac_data_format_map[i].str;
 	}
@@ -152,11 +151,11 @@ bool adef_format_cmp(const struct adef_format *f1, const struct adef_format *f2)
 	      f1->bit_depth == f2->bit_depth &&
 	      f1->sample_rate == f2->sample_rate;
 	if (f1->encoding == ADEF_ENCODING_PCM)
-		ret &= f1->pcm.interleaved == f2->pcm.interleaved &&
-		       f1->pcm.signed_val == f2->pcm.signed_val &&
-		       f1->pcm.little_endian == f2->pcm.little_endian;
+		ret = ret && (f1->pcm.interleaved == f2->pcm.interleaved &&
+			      f1->pcm.signed_val == f2->pcm.signed_val &&
+			      f1->pcm.little_endian == f2->pcm.little_endian);
 	if (f1->encoding == ADEF_ENCODING_AAC_LC)
-		ret &= f1->aac.data_format == f2->aac.data_format;
+		ret = ret && (f1->aac.data_format == f2->aac.data_format);
 	return ret;
 }
 
@@ -169,8 +168,9 @@ bool adef_format_intersect(const struct adef_format *format,
 		return false;
 
 	while (count--) {
-		if (adef_format_cmp(format, caps++))
+		if (adef_format_cmp(format, caps))
 			return true;
+		caps++;
 	}
 
 	return false;
@@ -270,11 +270,29 @@ static const struct {
 };
 
 
+static int parse_unsigned_int(const char *s, unsigned int *num)
+{
+	unsigned long parsed;
+	char *endptr;
+	errno = 0;
+	parsed = strtoul(s, &endptr, 10);
+	if (*endptr != '\0' || errno != 0)
+		return -EINVAL;
+	if (parsed > UINT_MAX)
+		return -E2BIG;
+	*num = (unsigned int)parsed;
+	return 0;
+}
+
+
 int adef_format_from_str(const char *str, struct adef_format *format)
 {
 	const char *delim = "/";
-	char *s, *tok, *p;
+	char *s;
+	const char *tok;
+	char *p;
 	int ret = -EINVAL;
+	int err;
 
 	if (!str || !format)
 		return -EINVAL;
@@ -300,19 +318,25 @@ int adef_format_from_str(const char *str, struct adef_format *format)
 	tok = strtok_r(NULL, delim, &p);
 	if (!tok)
 		goto out;
-	format->channel_count = strtoul(tok, NULL, 10);
+	err = parse_unsigned_int(tok, &format->channel_count);
+	if (err < 0)
+		goto out;
 
 	/* Get bit depth */
 	tok = strtok_r(NULL, delim, &p);
 	if (!tok)
 		goto out;
-	format->bit_depth = strtoul(tok, NULL, 10);
+	err = parse_unsigned_int(tok, &format->bit_depth);
+	if (err < 0)
+		goto out;
 
 	/* Get sample rate */
 	tok = strtok_r(NULL, delim, &p);
 	if (!tok)
 		goto out;
-	format->sample_rate = strtoul(tok, NULL, 10);
+	err = parse_unsigned_int(tok, &format->sample_rate);
+	if (err < 0)
+		goto out;
 
 	/* Get interleaved */
 	tok = strtok_r(NULL, delim, &p);
