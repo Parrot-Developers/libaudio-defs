@@ -94,7 +94,8 @@ static void test_format_cmp(void)
 
 	/* PCM checks */
 
-	fmt1 = fmt2 = adef_pcm_16b_48000hz_stereo;
+	fmt1 = adef_pcm_16b_48000hz_stereo;
+	fmt2 = adef_pcm_16b_48000hz_stereo;
 
 	ret = adef_format_cmp(&fmt1, &fmt2);
 	CU_ASSERT_TRUE(ret);
@@ -113,7 +114,8 @@ static void test_format_cmp(void)
 
 	/* AAC_LC checks */
 
-	fmt1 = fmt2 = adef_aac_lc_16b_48000hz_stereo_raw;
+	fmt1 = adef_aac_lc_16b_48000hz_stereo_raw;
+	fmt2 = adef_aac_lc_16b_48000hz_stereo_raw;
 
 	ret = adef_format_cmp(&fmt1, &fmt2);
 	CU_ASSERT_TRUE(ret);

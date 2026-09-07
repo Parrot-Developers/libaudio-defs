@@ -285,14 +285,75 @@ static int parse_unsigned_int(const char *s, unsigned int *num)
 }
 
 
-int adef_format_from_str(const char *str, struct adef_format *format)
+static int adef_format_parse_tokens(char *s, struct adef_format *format)
 {
 	const char *delim = "/";
-	char *s;
 	const char *tok;
 	char *p;
-	int ret = -EINVAL;
 	int err;
+
+	/* Get encoding */
+	tok = strtok_r(s, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	format->encoding = adef_encoding_from_str(tok);
+
+	/* Get channel count */
+	tok = strtok_r(NULL, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	err = parse_unsigned_int(tok, &format->channel_count);
+	if (err < 0)
+		return err;
+
+	/* Get bit depth */
+	tok = strtok_r(NULL, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	err = parse_unsigned_int(tok, &format->bit_depth);
+	if (err < 0)
+		return err;
+
+	/* Get sample rate */
+	tok = strtok_r(NULL, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	err = parse_unsigned_int(tok, &format->sample_rate);
+	if (err < 0)
+		return err;
+
+	/* Get interleaved */
+	tok = strtok_r(NULL, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	format->pcm.interleaved = !strcmp(tok, "INTERLEAVED") ? true : false;
+
+	/* Get signed value */
+	tok = strtok_r(NULL, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	format->pcm.signed_val = !strcmp(tok, "SIGNED") ? true : false;
+
+	/* Get little endian */
+	tok = strtok_r(NULL, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	format->pcm.little_endian = !strcmp(tok, "LE") ? true : false;
+
+	/* Get AAC data format */
+	tok = strtok_r(NULL, delim, &p);
+	if (!tok)
+		return -EINVAL;
+	format->aac.data_format = adef_aac_data_format_from_str(tok);
+
+	return 0;
+}
+
+
+int adef_format_from_str(const char *str, struct adef_format *format)
+{
+	char *s;
+	int ret;
 
 	if (!str || !format)
 		return -EINVAL;
@@ -308,64 +369,8 @@ int adef_format_from_str(const char *str, struct adef_format *format)
 	/* Copy string for parsing */
 	s = strdup(str);
 
-	/* Get encoding */
-	tok = strtok_r(s, delim, &p);
-	if (!tok)
-		goto out;
-	format->encoding = adef_encoding_from_str(tok);
+	ret = adef_format_parse_tokens(s, format);
 
-	/* Get channel count */
-	tok = strtok_r(NULL, delim, &p);
-	if (!tok)
-		goto out;
-	err = parse_unsigned_int(tok, &format->channel_count);
-	if (err < 0)
-		goto out;
-
-	/* Get bit depth */
-	tok = strtok_r(NULL, delim, &p);
-	if (!tok)
-		goto out;
-	err = parse_unsigned_int(tok, &format->bit_depth);
-	if (err < 0)
-		goto out;
-
-	/* Get sample rate */
-	tok = strtok_r(NULL, delim, &p);
-	if (!tok)
-		goto out;
-	err = parse_unsigned_int(tok, &format->sample_rate);
-	if (err < 0)
-		goto out;
-
-	/* Get interleaved */
-	tok = strtok_r(NULL, delim, &p);
-	if (!tok)
-		goto out;
-	format->pcm.interleaved = !strcmp(tok, "INTERLEAVED") ? true : false;
-
-	/* Get signed value */
-	tok = strtok_r(NULL, delim, &p);
-	if (!tok)
-		goto out;
-	format->pcm.signed_val = !strcmp(tok, "SIGNED") ? true : false;
-
-	/* Get little endian */
-	tok = strtok_r(NULL, delim, &p);
-	if (!tok)
-		goto out;
-	format->pcm.little_endian = !strcmp(tok, "LE") ? true : false;
-
-	/* Get AAC data format */
-	tok = strtok_r(NULL, delim, &p);
-	if (!tok)
-		goto out;
-	format->aac.data_format = adef_aac_data_format_from_str(tok);
-
-	/* Parsing succeed */
-	ret = 0;
-
-out:
 	/* Free string */
 	free(s);
 
